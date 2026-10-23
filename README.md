@@ -6,7 +6,7 @@
 
 Infernaut is a privacy-aware inference gateway for homelabs and self-hosted
 setups. It combines models from local runtimes — LM Studio, llama.cpp, vLLM —
-and cloud providers — OpenAI, xAI, Ollama Cloud, subscription endpoints — into
+and cloud providers — OpenAI, Ollama Cloud, subscription endpoints — into
 one OpenAI- and Anthropic-compatible catalog, without hiding which provider
 serves a request or where its data is allowed to go.
 
@@ -203,6 +203,11 @@ realm = "cloud"
 api_key_env = "OLLAMA_API_KEY"
 priority = 120
 ```
+
+**Provider status:** OpenAI and Ollama Cloud are verified against their live
+APIs. The xAI adapter — API key and subscription OAuth — is implemented and
+covered by the mock-provider e2e suite, but has not yet been verified against
+the live xAI API.
 
 The `openai` and `xai` kinds supply their official API base URLs
 automatically. An explicit `base_url` can override the preset for testing or a

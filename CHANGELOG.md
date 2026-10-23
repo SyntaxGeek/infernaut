@@ -33,6 +33,8 @@ the project intends to use [Semantic Versioning](https://semver.org/).
   `docs/HERMES_AUDIO.md` pages. No behavior changed.
 - Replaced lab-internal hostnames in test fixtures and recipe examples with
   fictional provider names.
+- Marked the xAI adapters as not yet verified against the live xAI API in the
+  README.
 
 ### Security
 
