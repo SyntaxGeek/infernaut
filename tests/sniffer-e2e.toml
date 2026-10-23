@@ -1,0 +1,25 @@
+[plugin]
+id = "sniffer-e2e"
+mode = "report"
+
+[storage]
+path = "target/sniffer-e2e-output"
+capture = "match"
+retain_days = 1
+max_total_mb = 10
+max_file_mb = 1
+max_payload_kb = 64
+context_before = 16
+context_after = 16
+compress = true
+
+[[rules]]
+id = "e2e-signature"
+description = "End-to-end observer fixture"
+severity = "test"
+type = "keyword"
+patterns = ["INFERNAUT_E2E_SIGNATURE"]
+case_insensitive = false
+directions = ["request"]
+capture = "match"
+max_findings_per_payload = 1

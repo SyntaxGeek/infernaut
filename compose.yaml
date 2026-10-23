@@ -1,0 +1,17 @@
+services:
+  infernaut:
+    build: .
+    ports:
+      - "${INFERNAUT_BIND_IP:-127.0.0.1}:4040:4040"
+    volumes:
+      - ./config:/config
+      - infernaut-state:/home/infernaut/.infernaut
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  infernaut-state:

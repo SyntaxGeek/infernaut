@@ -1,0 +1,52 @@
+[plugin]
+id = "sniffer"
+mode = "report"
+
+[storage]
+# The sniffer is intentionally a short-lived evidence logger, not a database.
+path = "~/.infernaut/sniffer"
+capture = "match" # none | match | message | payload
+retain_days = 14
+max_total_mb = 500
+max_file_mb = 25
+max_payload_kb = 512
+context_before = 80
+context_after = 80
+compress = true
+
+[[rules]]
+id = "private-key"
+description = "Private key material visible at the inference boundary"
+severity = "critical"
+type = "keyword"
+patterns = [
+  "BEGIN PRIVATE KEY",
+  "BEGIN OPENSSH PRIVATE KEY",
+  "BEGIN RSA PRIVATE KEY",
+]
+case_insensitive = true
+directions = ["request", "response"]
+capture = "payload"
+max_findings_per_payload = 3
+
+[[rules]]
+id = "credential-assignment"
+description = "Likely credential assignment"
+severity = "high"
+type = "regex"
+pattern = '''\b(api[_-]?key|password|secret|token)\s*[:=]\s*\S+'''
+case_insensitive = true
+directions = ["request", "response"]
+capture = "match"
+
+# Example of a rule that matters only when data is leaving the local realm.
+[[rules]]
+id = "internal-hostname-cloud-egress"
+description = "Internal hostname included in a cloud-bound model request"
+severity = "high"
+type = "regex"
+pattern = '''\b[a-z0-9.-]+\.internal\.example\.com\b'''
+case_insensitive = true
+directions = ["request"]
+realms = ["cloud"]
+capture = "match"

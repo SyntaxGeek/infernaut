@@ -1,0 +1,30 @@
+# Rust build and analysis output
+/target/
+/coverage/
+*.profraw
+__pycache__/
+*.py[cod]
+
+# Operator-specific configuration and credentials
+/.env
+/.env.*
+!/.env.example
+/infernaut.toml
+/infernaut.toml.bak-*
+/infernaut.toml.lock
+/config/
+# Keep pre-release operator configurations private until they are migrated.
+/*router.toml
+/*router.toml.bak-*
+/sniffer.toml
+/.infernaut/
+
+# Runtime output
+*.log
+*.pid
+
+# Editor and operating-system metadata
+.DS_Store
+.idea/
+.vscode/
+*~

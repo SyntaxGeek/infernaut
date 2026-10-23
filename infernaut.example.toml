@@ -1,0 +1,372 @@
+[server]
+listen = "127.0.0.1:4040"
+api_key_env = "INFERNAUT_API_KEY"
+catalog_refresh_seconds = 15
+# colon_qualified keeps provider identity visible in harnesses such as Hermes
+# that render only the final slash-delimited segment of a model ID.
+model_id_format = "colon_qualified" # slash | colon_qualified
+model_order = "provider_then_model" # provider_then_model | model_then_provider
+
+# Optional inference-only keys give stable observer identities to harnesses.
+# Each enabled client must resolve to a distinct, non-empty key.
+# [[clients]]
+# id = "claude-code"
+# title = "Claude Code"
+# api_key_env = "INFERNAUT_CLAUDE_CODE_KEY"
+# recipe = "claude-lab" # optional; see docs/ROUTE_RECIPES.md
+
+# [[clients]]
+# id = "hermes"
+# title = "Hermes Telegram"
+# api_key_env = "INFERNAUT_HERMES_KEY"
+# recipes = ["hermes-private", "hermes-cloud"] # additive /model choices
+
+# Optional harness dispatch recipe. Targets use canonical provider/model IDs
+# or existing route/... IDs. The configuration TUI can build this block.
+# [[recipes]]
+# id = "claude-lab"
+# title = "Claude Code lab"
+# kind = "claude_code"
+# protocol = "anthropic"
+# allowed_realms = ["local"]
+#
+# [[recipes.slots]]
+# id = "primary"
+# target = "lmstudio/primary-model"
+#
+# [[recipes.slots]]
+# id = "background"
+# target = "llamacpp/small-background-model"
+#
+# [[recipes.slots]]
+# id = "subagent"
+# target = "route/private/code"
+#
+# [[recipes.slots]]
+# id = "classifier"
+# target = "llamacpp/small-classifier-model"
+# trigger = "classifier"
+# max_output_tokens = 1024
+#
+# [[recipes.slots]]
+# id = "compression"
+# target = "lmstudio/long-context-model"
+# trigger = "compression"
+# max_output_tokens = 16384
+
+# Hermes recipes keep ordinary models/routes visible and add one selectable
+# primary entry per authorized recipe. Delegation and compression remain
+# internal slots.
+# [[recipes]]
+# id = "hermes-private"
+# title = "Hermes private"
+# kind = "hermes"
+# protocol = "openai"
+# allowed_realms = ["local"]
+#
+# [[recipes.slots]]
+# id = "primary"
+# title = "Private auto"
+# target = "route/private/auto"
+#
+# [[recipes.slots]]
+# id = "delegation"
+# title = "Delegated worker"
+# target = "llamacpp/subagent-model"
+# trigger = "delegation"
+#
+# [[recipes.slots]]
+# id = "compression"
+# title = "Private compression"
+# target = "lmstudio/long-context-model"
+# trigger = "compression"
+# max_output_tokens = 12000
+
+# Stable exact pointers keep harness features pinned to a durable public model
+# ID while allowing the operator to change the one target centrally. With
+# colon-qualified IDs this entry is published as alias:cron. No classifier,
+# scoring, or fallback is used; an unavailable target fails closed.
+#
+# [[aliases]]
+# id = "cron"
+# title = "Cron automation"
+# target = "lmstudio/qwen3-14b"
+# context_length = 131072 # optional; omit to inherit target detection
+# A recipe primary may also be pinned as target = "recipe/hermes-private/primary";
+# it remains visible only to client keys authorized for that recipe.
+
+[privacy_lock]
+# When set to "local_only", non-local providers are disabled before discovery,
+# probing, catalog publication, or inference. Requests cannot override this.
+# selective: publish local and cloud providers; route constraints and the
+# x-infernaut-privacy: local_only request header fail closed per request.
+# local_only: emergency hard lock; cloud providers are not even discovered.
+mode = "selective"
+
+[probes]
+mode = "manual"
+only_loaded_models = true
+max_concurrency = 1
+idle_grace_seconds = 2
+timeout_seconds = 30
+max_output_tokens = 64
+cancel_on_inference = true
+
+[routing]
+# shadow classifies adaptive routes and logs recommendations without changing
+# the physical model selected by the route. Use active only after reviewing
+# real traffic. Existing physical IDs and first_available routes are unaffected.
+mode = "off" # off | shadow | active
+loaded_model_preference = "balanced" # quality_first | balanced | warm_first
+session_ttl_seconds = 3600
+
+# Model strengths and traits are optional manual routing preferences. Match
+# canonical provider/model IDs, not provider display aliases.
+#
+# [[routing.models]]
+# model = "lmstudio/small-code-moe"
+# context_length = 131072 # optional operator override; does not reconfigure upstream
+# roles = ["inspect"]
+#
+# [routing.models.strengths]
+# "code.inspect" = 0.90
+# "code.implement" = 0.45
+# "chat" = 0.90
+#
+# [routing.models.traits]
+# architecture = "moe"
+# latency_tier = 1 # 0 through 4
+# cost_tier = 0    # 0 through 4
+# preferred_effort = ["light"]
+#
+# [[routing.models]]
+# model = "chatgpt-codex/gpt-coding-model"
+# One workload role plus the optional additive vision role is allowed.
+# roles = ["heavy", "vision"]
+#
+# [routing.models.strengths]
+# "code.inspect" = 0.85
+# "code.implement" = 1.00
+# "code.architect" = 1.00
+#
+# [routing.models.traits]
+# architecture = "dense"
+# latency_tier = 3
+# cost_tier = 4
+# preferred_effort = ["standard", "heavy"]
+#
+# Explicit rules take precedence over scores.
+# [[routing.rules]]
+# route = "cloud/auto"
+# task = "code"
+# operation = "architect"
+# effort = "heavy"
+# prefer = ["chatgpt-codex/gpt-coding-model"]
+
+# Optional report-only traffic inspection. Build with `cargo build --release
+# --bins`, copy `sniffer.example.toml` to `sniffer.toml`, review its capture
+# policy, and validate it before uncommenting this block. See docs/PLUGINS.md.
+#
+# [[plugins]]
+# id = "sniffer"
+# mode = "observe"
+# command = "./target/release/infernaut-sniffer"
+# args = ["sniffer.toml"]
+# events = [
+#   "request.content",
+#   "response.delta",
+#   "response.completed",
+#   "provider.error",
+#   "diagnostic.matched",
+# ]
+# queue_capacity = 1024
+
+[[providers]]
+id = "lmstudio"
+alias = "lm" # optional display namespace used in /v1/models
+kind = "lm_studio"
+title = "LM Studio"
+base_url = "http://127.0.0.1:1234/v1"
+realm = "local"
+priority = 10
+jit_load = true
+
+[[providers]]
+id = "llamacpp"
+alias = "cpp"
+kind = "llama_cpp"
+title = "llama.cpp"
+base_url = "http://127.0.0.1:8080/v1"
+realm = "local"
+priority = 20
+jit_load = true
+
+# Generic runtimes that expose both OpenAI model discovery and a native
+# Anthropic-compatible POST /v1/messages endpoint opt in explicitly.
+#
+# [[providers]]
+# id = "vllm"
+# alias = "vllm"
+# kind = "vllm"
+# title = "vLLM"
+# base_url = "http://127.0.0.1:8000/v1"
+# realm = "local"
+# priority = 30
+
+# OpenAI-compatible audio servers may expose fixed STT/TTS endpoints and no
+# model catalog. Static declarations make both service lanes honest and
+# explicit. The guided configurator creates the provider, exclusive service
+# profiles, and first-available routes together.
+#
+# [[providers]]
+# id = "speech"
+# alias = "audio"
+# kind = "openai_audio"
+# title = "Audio Server"
+# base_url = "http://127.0.0.1:8080/v1"
+# realm = "local"
+# priority = 30
+#
+# [[providers.models]]
+# id = "nemotron-3.5-asr"
+# upstream_id = "nemotron-3.5-asr"
+# title = "Nemotron 3.5 ASR"
+# services = ["transcription"]
+#
+# [[providers.models]]
+# id = "tts-1"
+# upstream_id = "tts-1"
+# title = "Text-to-Speech"
+# services = ["speech"]
+#
+# [[routing.models]]
+# model = "speech/nemotron-3.5-asr"
+# auto_routing = false
+# roles = ["transcription"]
+#
+# [[routing.models]]
+# model = "speech/tts-1"
+# auto_routing = false
+# roles = ["speech"]
+#
+# [[routes]]
+# id = "private/transcription"
+# title = "Private transcription"
+# description = "Explicit local speech-to-text service route."
+# allowed_realms = ["local"]
+# candidates = ["speech/nemotron-3.5-asr"]
+# strategy = "first_available"
+# on_no_eligible_model = "deny"
+#
+# [[routes]]
+# id = "private/speech"
+# title = "Private speech synthesis"
+# description = "Explicit local text-to-speech service route."
+# allowed_realms = ["local"]
+# candidates = ["speech/tts-1"]
+# strategy = "first_available"
+# on_no_eligible_model = "deny"
+
+# First-class cloud providers use supported API-key authentication. The key is
+# read at request time and is never copied into this configuration file.
+#
+# [[providers]]
+# id = "openai"
+# kind = "openai"
+# title = "OpenAI API"
+# realm = "cloud"
+# api_key_env = "OPENAI_API_KEY"
+# include_models = ["gpt-*", "o1*", "o3*", "o4*", "chatgpt-*"]
+# priority = 100
+#
+# [[providers]]
+# id = "xai"
+# kind = "xai"
+# title = "xAI"
+# realm = "cloud"
+# api_key_env = "XAI_API_KEY"
+# include_models = ["grok-*"]
+# priority = 110
+#
+# [[providers]]
+# id = "ollama-cloud"
+# kind = "ollama_cloud"
+# title = "Ollama Cloud"
+# realm = "cloud"
+# api_key_env = "OLLAMA_API_KEY"
+# priority = 120
+#
+# ChatGPT subscription models use Codex device authorization rather than an
+# OpenAI API key. After uncommenting, run:
+#   target/release/infernaut auth login chatgpt-codex infernaut.toml
+#
+# [[providers]]
+# id = "chatgpt-codex"
+# kind = "openai_codex"
+# title = "ChatGPT Codex"
+# realm = "cloud"
+# include_models = ["gpt-*"]
+# priority = 125
+#
+# xAI subscription OAuth requires an OAuth client registered for Infernaut.
+# Do not copy another application's client ID. The login command prints an
+# authorization URL and accepts either the displayed code or callback URL.
+#
+# [[providers]]
+# id = "xai-subscription"
+# kind = "xai_oauth"
+# title = "xAI Subscription"
+# realm = "cloud"
+# oauth_client_id = "YOUR_INFERNAUT_XAI_CLIENT_ID"
+# include_models = ["grok-*"]
+# priority = 126
+#
+# Generic OpenAI-compatible cloud services remain supported. They require an
+# explicit base_url because Infernaut does not guess third-party endpoints.
+#
+# [[providers]]
+# id = "openrouter"
+# kind = "openai_compatible"
+# title = "OpenRouter"
+# base_url = "https://openrouter.ai/api/v1"
+# realm = "cloud"
+# api_key_env = "OPENROUTER_API_KEY"
+# include_models = ["anthropic/*", "google/*"]
+# priority = 130
+
+[[routes]]
+id = "private"
+title = "Private - local only"
+description = "Selects the first available model from the local realm and fails closed."
+allowed_realms = ["local"]
+on_no_eligible_model = "deny"
+
+# Adaptive route IDs may contain slash-delimited realm/task/effort segments.
+# With colon_qualified publication this appears in Hermes as
+# route:private:auto. Start with routing.mode = "shadow".
+#
+# [[routes]]
+# id = "private/auto"
+# title = "Private Auto"
+# description = "Classifies task and effort, then selects a local model."
+# allowed_realms = ["local"]
+# strategy = "adaptive"
+# task = "auto"     # auto | code | data | chat
+# effort = "auto"   # auto | light | standard | heavy
+# Stable route contract. Only models reporting at least this context are
+# eligible; the virtual route always advertises this value to harnesses.
+# context_length = 131072
+# Optional route-scoped input estimate. The conservative default is 3.0
+# serialized bytes per token. Increase only with tokenizer evidence.
+# token_estimate_bytes_per_token = 3.5
+# Optional cap used only for detected compression requests. Infernaut uses
+# it for context admission and forwards the capped maximum to the provider.
+# compression_max_output_tokens = 16384
+# on_no_eligible_model = "deny"
+
+# [[routes]]
+# id = "cloud"
+# title = "Cloud"
+# description = "Selects the first available cloud model by configured priority."
+# allowed_realms = ["cloud"]
+# on_no_eligible_model = "deny"

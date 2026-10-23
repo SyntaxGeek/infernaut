@@ -1,0 +1,14 @@
+[server]
+listen = "0.0.0.0:4040"
+api_key_env = "INFERNAUT_API_KEY"
+catalog_refresh_seconds = 60
+
+[privacy_lock]
+mode = "local_only"
+
+[[providers]]
+id = "mock"
+kind = "lm_studio"
+base_url = "http://host.docker.internal:18080/v1"
+realm = "local"
+jit_load = true

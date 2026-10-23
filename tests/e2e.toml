@@ -1,0 +1,222 @@
+[server]
+listen = "127.0.0.1:14040"
+api_key_env = "INFERNAUT_API_KEY"
+catalog_refresh_seconds = 60
+
+[privacy_lock]
+mode = "local_only"
+
+[probes]
+mode = "manual"
+only_loaded_models = true
+max_concurrency = 1
+idle_grace_seconds = 0
+timeout_seconds = 5
+max_output_tokens = 16
+cancel_on_inference = true
+
+[routing]
+mode = "active"
+session_ttl_seconds = 300
+
+[[clients]]
+id = "hermes"
+title = "Hermes Telegram"
+api_key_env = "E2E_HERMES_KEY"
+recipes = ["hermes-private"]
+
+[[recipes]]
+id = "hermes-private"
+title = "Hermes private"
+kind = "hermes"
+protocol = "openai"
+allowed_realms = ["local"]
+
+[[recipes.slots]]
+id = "primary"
+title = "Private auto"
+target = "route/private/auto"
+
+[[recipes.slots]]
+id = "delegation"
+title = "Delegated worker"
+target = "mock/org/beta"
+trigger = "delegation"
+
+[[recipes.slots]]
+id = "compression"
+title = "Local compression"
+target = "mock/compressor"
+trigger = "compression"
+max_output_tokens = 12000
+
+[[routing.models]]
+model = "mock/compressor"
+auto_routing = false
+
+[routing.models.strengths]
+"chat" = 1.0
+"default" = 1.0
+
+[routing.models.traits]
+architecture = "small"
+latency_tier = 0
+cost_tier = 0
+preferred_effort = ["light"]
+
+[[routing.models]]
+model = "vllm/vllm-only"
+auto_routing = false
+
+[[routing.models]]
+model = "mock/alpha"
+
+[routing.models.strengths]
+"code.inspect" = 0.95
+"code.architect" = 0.30
+"code.implement" = 0.40
+"chat" = 0.90
+
+[routing.models.traits]
+architecture = "moe"
+latency_tier = 1
+cost_tier = 0
+preferred_effort = ["light"]
+
+[[routing.models]]
+model = "mock/org/beta"
+
+[routing.models.strengths]
+"code.inspect" = 0.60
+"code.architect" = 0.98
+"code.implement" = 0.95
+"chat" = 0.50
+
+[routing.models.traits]
+architecture = "dense"
+latency_tier = 3
+cost_tier = 2
+preferred_effort = ["heavy"]
+
+[[routing.rules]]
+route = "private/auto"
+task = "code"
+operation = "architect"
+effort = "heavy"
+prefer = ["mock/org/beta"]
+
+[[plugins]]
+id = "sniffer"
+mode = "observe"
+command = "target/debug/infernaut-sniffer"
+args = ["tests/sniffer-e2e.toml"]
+events = ["request.content", "response.delta", "response.completed", "provider.error"]
+queue_capacity = 128
+
+[[providers]]
+id = "mock"
+kind = "lm_studio"
+title = "Mock local provider"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "local"
+priority = 1
+auto_load = false
+jit_load = true
+
+[[providers]]
+id = "llamacpp"
+kind = "llama_cpp"
+title = "Mock llama.cpp router"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "local"
+priority = 2
+auto_load = false
+jit_load = true
+
+[[providers]]
+id = "vllm"
+kind = "vllm"
+title = "Mock vLLM"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "local"
+priority = 3
+include_models = ["vllm-only"]
+
+[[providers]]
+id = "forbidden-cloud"
+kind = "openai_compatible"
+title = "Provider excluded by the privacy lock"
+base_url = "http://127.0.0.1:18081/v1"
+realm = "cloud"
+priority = 0
+auto_load = false
+jit_load = false
+
+[[providers]]
+id = "speech"
+kind = "openai_audio"
+title = "Mock OpenAI audio service"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "local"
+priority = 4
+
+[[providers.models]]
+id = "nemotron-parakeet"
+upstream_id = "parakeet"
+services = ["transcription"]
+
+[[providers.models]]
+id = "tts-1"
+upstream_id = "tts-1"
+services = ["speech"]
+
+[[routing.models]]
+model = "speech/nemotron-parakeet"
+auto_routing = false
+roles = ["transcription"]
+
+[[routing.models]]
+model = "speech/tts-1"
+auto_routing = false
+roles = ["speech"]
+
+[[routes]]
+id = "private"
+title = "Private"
+allowed_realms = ["local"]
+on_no_eligible_model = "deny"
+
+[[routes]]
+id = "private/auto"
+title = "Private Auto"
+description = "Classifies task and effort, then chooses a private model."
+allowed_realms = ["local"]
+strategy = "adaptive"
+task = "auto"
+effort = "auto"
+context_length = 32000
+on_no_eligible_model = "deny"
+
+[[routes]]
+id = "vllm-test"
+title = "vLLM Test"
+allowed_realms = ["local"]
+candidates = ["vllm/vllm-only"]
+context_length = 262144
+on_no_eligible_model = "deny"
+
+[[routes]]
+id = "private/transcription"
+title = "Private transcription"
+allowed_realms = ["local"]
+candidates = ["speech/nemotron-parakeet"]
+strategy = "first_available"
+on_no_eligible_model = "deny"
+
+[[routes]]
+id = "private/speech"
+title = "Private speech synthesis"
+allowed_realms = ["local"]
+candidates = ["speech/tts-1"]
+strategy = "first_available"
+on_no_eligible_model = "deny"

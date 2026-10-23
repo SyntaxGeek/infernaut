@@ -1,0 +1,52 @@
+[server]
+listen = "127.0.0.1:14041"
+api_key_env = "INFERNAUT_API_KEY"
+catalog_refresh_seconds = 60
+
+[privacy_lock]
+mode = "selective"
+
+[probes]
+mode = "manual"
+only_loaded_models = true
+max_concurrency = 1
+idle_grace_seconds = 0
+timeout_seconds = 5
+max_output_tokens = 16
+cancel_on_inference = true
+
+[[providers]]
+id = "openai"
+kind = "openai"
+title = "OpenAI API mock"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "cloud"
+api_key_env = "OPENAI_E2E_API_KEY"
+include_models = ["alpha"]
+priority = 100
+
+[[providers]]
+id = "xai"
+kind = "xai"
+title = "xAI mock"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "cloud"
+api_key_env = "XAI_E2E_API_KEY"
+include_models = ["grok-*"]
+priority = 110
+
+[[providers]]
+id = "ollama-cloud"
+kind = "ollama_cloud"
+title = "Ollama Cloud mock"
+base_url = "http://127.0.0.1:18080/v1"
+realm = "cloud"
+api_key_env = "OLLAMA_E2E_API_KEY"
+include_models = ["ollama-cloud-model"]
+priority = 120
+
+[[routes]]
+id = "cloud"
+title = "Cloud"
+allowed_realms = ["cloud"]
+on_no_eligible_model = "deny"
