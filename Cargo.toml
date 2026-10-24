@@ -24,6 +24,7 @@ exclude = [
     "*router.toml",
     "*router.toml.bak-*",
     "sniffer.toml",
+    "sentinel.toml",
     "*.log",
     "*.pid",
     ".DS_Store",

@@ -180,6 +180,19 @@ session_ttl_seconds = 3600
 #   "diagnostic.matched",
 # ]
 # queue_capacity = 1024
+#
+# Optional structural prompt-injection scanning. Copy `sentinel.example.toml`
+# to `sentinel.toml`, review its capture policy, and validate before
+# uncommenting. Scans request-side tool-result content only; pair with the
+# sniffer for response-direction rules.
+#
+# [[plugins]]
+# id = "sentinel"
+# mode = "observe"
+# command = "./target/release/infernaut-sentinel"
+# args = ["sentinel.toml"]
+# events = ["request.content"]
+# queue_capacity = 1024
 
 [[providers]]
 id = "lmstudio"

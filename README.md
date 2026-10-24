@@ -559,6 +559,28 @@ events = [
 queue_capacity = 1024
 ```
 
+The bundled `infernaut-sentinel` is a structural prompt-injection scanner: it
+parses each request body, tags segments by provenance (system, user,
+assistant, tool result), and applies injection-marker, Unicode-smuggling,
+homoglyph, encoded-payload, and hidden-markup detectors to untrusted segments
+only:
+
+```toml
+[[plugins]]
+id = "sentinel"
+mode = "observe"
+command = "./target/release/infernaut-sentinel"
+args = ["sentinel.toml"]
+events = ["request.content"]
+```
+
+Distinct segments are reported once even when clients resend the full
+transcript on every call, so the findings feed stays signal-dense. A reference
+stack — Loki, Alloy, and a provisioned Grafana dashboard — consumes
+`findings-*.jsonl` for live review:
+
+![Infernaut Security dashboard: findings by detector, severity, and provenance with recent findings from Grafana Loki](docs/img/sentinel-dashboard.png)
+
 Observer queues are bounded and inference never waits for plugin analysis or
 storage. Queue loss and child-process health are visible under `.plugins` in
 `GET /health`. Raw content and captured evidence are sensitive; choose capture
@@ -580,7 +602,7 @@ and the [inspection, storage, and circuit-breaker plan](docs/INSPECTION_AND_PLUG
 | [Exact model aliases](docs/MODEL_ALIASES.md) | Durable `alias/` pointers |
 | [Hermes STT and TTS](docs/HERMES_AUDIO.md) | Audio lanes through the gateway |
 | [Docker](docs/DOCKER.md) | Container deployment and the configuration TUI |
-| [Plugins](docs/PLUGINS.md) | Observer plugin protocol and the sniffer |
+| [Plugins](docs/PLUGINS.md) | Observer plugin protocol, the sniffer, and the sentinel |
 | [Inspection and plugins](docs/INSPECTION_AND_PLUGINS.md) | Preserved inspection and circuit-breaker plan |
 | [Architecture](docs/ARCHITECTURE.md) | Internal structure |
 

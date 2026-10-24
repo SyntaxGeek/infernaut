@@ -1,0 +1,52 @@
+# infernaut-sentinel — structural prompt-injection scanner (report-only)
+#
+# Enable in infernaut.toml:
+#   [[plugins]]
+#   id = "sentinel"
+#   mode = "observe"
+#   command = "./target/release/infernaut-sentinel"
+#   args = ["./sentinel.toml"]
+#   events = ["request.content"]
+
+[plugin]
+id = "sentinel"
+mode = "report"
+
+[storage]
+# Findings and evidence are sensitive; the directory is created 0700 with 0600 files.
+path = "~/.infernaut/sentinel"
+capture = "match" # none | match | segment | payload
+retain_days = 14
+max_total_mb = 500
+max_file_mb = 25
+max_payload_kb = 512
+context_before = 80
+context_after = 80
+compress = true
+
+[scan]
+# Builtin detectors only run on untrusted segments (tool results and
+# unparseable bodies). User rules additionally run on roles you opt in here.
+scan_user = false
+scan_assistant = false
+scan_system = false
+max_segment_bytes = 262144
+
+[scan.builtin]
+injection_markers = true  # instruction overrides and chat-template tokens
+unicode_smuggling = true  # zero-width, bidi controls, tag characters
+homoglyphs = true         # mixed Latin/Cyrillic/Greek script runs
+encoded_payloads = true   # long hex or base64 blobs
+hidden_markup = true      # HTML comments in tool output
+
+# Optional extra rules, same shape as sniffer rules. They run on untrusted
+# segments always, and on user/system/assistant segments per the toggles above.
+[[scan.rules]]
+id = "exfil-endpoints"
+description = "Untrusted content steering the agent toward a collector endpoint"
+severity = "high"
+type = "regex"
+pattern = '''\b(webhook\.site|requestbin|burpcollaborator|oast\.[a-z]+)\b'''
+case_insensitive = true
+capture = "match"
+max_findings_per_payload = 5

@@ -1,4 +1,4 @@
-# Observer plugins and the reference sniffer
+# Observer plugins, the reference sniffer, and the sentinel
 
 Infernaut observer plugins are optional, out-of-process programs that receive
 typed copies of inference-boundary events. They are suitable for lightweight
@@ -192,6 +192,89 @@ Infernaut does not provide search, dashboards, alerts, archival, or network
 upload. A downstream system can ingest the JSONL blob and referenced evidence as
 needed. Retention deletion can leave an older finding whose evidence blob has
 expired; consumers must treat evidence paths as retention-scoped references.
+
+## Structural injection scanning with the sentinel
+
+`infernaut-sentinel` is a second bundled observer. Where the sniffer matches
+wire payloads, the sentinel parses the request body per endpoint and tags every
+text segment with its provenance before scanning:
+
+- Anthropic `/v1/messages`: `system` fields and blocks are system text, plain
+  `text` blocks follow their message role, and `tool_result` blocks are
+  untrusted regardless of the envelope role.
+- OpenAI `/v1/chat/completions`: role `tool` and `function` messages are
+  untrusted.
+- OpenAI `/v1/responses`: `function_call_output` items are untrusted;
+  `instructions` is system text.
+- `/v1/embeddings`: inputs are treated as untrusted corpora.
+- Bodies that fail to parse become one untrusted segment so nothing transiting
+  the gateway goes unscanned.
+
+Builtin detectors run only on untrusted segments: conservative
+instruction-override and chat-template markers, invisible Unicode smuggling
+(zero-width, bidi controls, tag characters), mixed-script homoglyph runs, long
+hex/base64 blobs, and hidden HTML comments. User rules run on untrusted
+segments always and on user/system/assistant segments only when the `[scan]`
+toggles enable them.
+
+Enable it next to (or instead of) the sniffer:
+
+```bash
+cp sentinel.example.toml sentinel.toml
+target/release/infernaut-sentinel --validate sentinel.toml
+```
+
+```toml
+[[plugins]]
+id = "sentinel"
+mode = "observe"
+command = "./target/release/infernaut-sentinel"
+args = ["sentinel.toml"]
+events = ["request.content"]
+```
+
+The sentinel is request-side only: it ignores response events entirely. Pair it
+with the sniffer for response-direction rules. Each match appends one
+`infernaut.sentinel-finding.v1` record to `findings-*.jsonl` with the segment's
+provenance, path, and detector id, plus the same content-addressed evidence
+scheme as the sniffer with `capture = none | match | segment | payload`.
+
+### Volume, deduplication, and disk bounds
+
+The sentinel is built for chatty workloads without filling your disk:
+
+- **Segment deduplication.** LLM APIs resend the full transcript on every call,
+  so identical tool results arrive repeatedly. The sentinel hashes each segment
+  and reports each distinct segment once per process; the exit stats include
+  `dedup_skipped`. The seen-set is in memory (bounded at 100k hashes, ~7 MiB),
+  so a plugin restart rescans the current history exactly once. Content that
+  mutates between requests (new tool output, changed text) gets a fresh hash
+  and is always reported.
+- **Flood caps.** At most 200 findings per request and 100 per segment,
+  regardless of how noisy the content is.
+- **False-positive guards on encoded blobs.** Hex requires 64+ hex digits.
+  Base64 that decodes to printable text is only reported when the decoded text
+  carries an injection marker, so identifiers and slugs stay quiet; blobs with
+  three or more slashes plus path-like characters are treated as filesystem
+  paths, which share the base64 alphabet but decode to garbage.
+- **Hard disk ceiling.** `max_total_mb` bounds all findings files and evidence
+  blobs; oldest files are evicted on rotation, and the in-flight file is capped
+  by `max_file_mb`, so worst-case usage is `max_total_mb + max_file_mb`.
+  `retain_days` prunes anything older. When the quota is full, evidence is
+  omitted (`omitted_reason: storage_limit_reached`) but findings are still
+  written.
+
+Findings are plain JSONL and evidence blobs are content-addressed files, so a
+log agent can tail `findings-*.jsonl` (handling rotation by glob) and forward
+to Grafana Loki, Elasticsearch, or any other sink. A natural reference
+deployment runs Loki, Alloy, and Grafana next to the gateway: Alloy tails the
+findings files and container logs, Loki stores 30 days, and a provisioned
+dashboard covers findings by detector, severity, and provenance.
+
+The sniffer boundary applies unchanged: the gateway sees the assembled
+provider-boundary body, not where content originally came from. A harness that
+pastes fetched web text into a plain user message is indistinguishable from the
+operator's own input, and report-only findings cannot block a request.
 
 ## Performance and failure semantics
 

@@ -23,6 +23,13 @@ the project intends to use [Semantic Versioning](https://semver.org/).
 - Guided configuration TUI and read-only Infernaut Mission Control observer.
 - Dedicated OpenAI-compatible transcription and speech synthesis lanes.
 - Optional observer plugins and report-only keyword/regex sniffer.
+- Structural prompt-injection scanner `infernaut-sentinel`: parses request
+  bodies into provenance-tagged segments and applies injection-marker,
+  Unicode-smuggling, homoglyph, encoded-payload, and hidden-markup detectors
+  to untrusted tool-result content, with sniffer-style JSONL findings and
+  evidence. Segments are deduplicated by hash, so clients that resend the full
+  transcript on every call produce one finding per distinct segment, and all
+  findings plus evidence are bounded by a configured disk quota.
 - Content-free runtime metrics and provider-error diagnostics.
 
 ### Changed
