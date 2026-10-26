@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/* \
     && useradd --uid 10001 --create-home infernaut \
     && mkdir /config && chown infernaut:infernaut /config
-COPY --from=build /build/target/release/infernaut /build/target/release/infernaut-sniffer /build/target/release/infernaut-sentinel /usr/local/bin/
+COPY --from=build /build/target/release/infernaut /build/target/release/infernaut-sniffer /build/target/release/infernaut-sentinel /build/target/release/infernaut-egress /usr/local/bin/
 USER infernaut
 ENV HOME=/home/infernaut
 WORKDIR /config

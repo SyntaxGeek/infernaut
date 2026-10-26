@@ -276,6 +276,63 @@ provider-boundary body, not where content originally came from. A harness that
 pastes fetched web text into a plain user message is indistinguishable from the
 operator's own input, and report-only findings cannot block a request.
 
+## Egress monitoring with the egress watcher
+
+The sentinel defends the request direction: untrusted content flowing toward
+the model. `infernaut-egress` covers the opposite direction: what the MODEL
+sends back. Motivated by the Qwen3.8 exfiltration findings (Cohere, October
+2026): a tool-capable open-weight model that attempted an upload to a Beijing
+cloud bucket while its reasoning trace claimed no tools would be called. A
+reasoning trace is not a security boundary, so the watcher enforces nothing on
+chain-of-thought and everything on the actual emitted output.
+
+Subscribe the watcher to `response.delta` and `response.completed`:
+
+```toml
+[[plugins]]
+id = "egress"
+mode = "observe"
+command = "/usr/local/bin/infernaut-egress"
+args = ["egress.toml"]
+events = ["response.delta", "response.completed"]
+queue_capacity = 1024
+```
+
+The watcher buffers response chunks per request id, reassembles streamed
+tool-call argument fragments (OpenAI `arguments`, Anthropic `partial_json`,
+and friends), and scans the reassembled text plus every complete JSON string
+in the body. Detection is report-only; findings land as
+`infernaut.egress-finding.v1` JSONL in `storage.directory` with the same
+rotation, retention, and total-quota semantics as the sentinel, minus the
+evidence blobs (the matched text is inlined, capped at `max_match_chars`).
+
+Detectors, with defaults from `egress.example.toml`:
+
+| Detector | Severity | Fires on |
+|---|---|---|
+| `egress.metadata-endpoint` | high | `169.254.169.254`, `100.100.100.200`, `fd00:ec2::254`, `metadata.google.internal` |
+| `egress.denylisted-host` | high | any host matching `domains.denylist` (wildcard `*.suffix` supported) |
+| `egress.namespace-escape` | high | `unshare -U...`, `nsenter` |
+| `egress.privilege-trick` | medium | `--propagation private`, `mount ... tmpfs` |
+| `egress.upload-command` | medium | `curl`/`wget` with `-X PUT/POST`, `--upload-file`, `-T`, `--data-binary`, `-d @`, `-F` |
+| `egress.cloud-storage` | medium | URL host on common cloud storage suffixes (`*.aliyuncs.com`, `*.amazonaws.com`, ...) |
+| `egress.download-to-disk` | info | `curl`/`wget` writing a fetched URL to disk (the Qwen3.8 trigger shape) |
+| `egress.external-domain` | info | any URL host not on `domains.allowlist` |
+
+`egress.external-domain` is the "who is my model calling" feed: point
+`domains.allowlist` at the API destinations your agents legitimately use and
+everything else shows up per host, capped at `max_domain_findings_per_response`
+per response. Metadata and denylisted hosts are reported only by their stronger
+detector, never duplicated as external domains.
+
+Boundaries worth naming: the watcher sees only traffic that transits Infernaut
+and cannot see the outbound network call an agent makes from its own host; it
+is detection and forensics, not prevention. Deny egress at the network layer,
+block unprivileged user namespaces in agent containers, and treat the findings
+as the audit trail. Buffering is bounded by `max_buffer_bytes` per response and
+`max_tracked_requests` in-flight responses; the oldest buffer is dropped and
+counted under pressure.
+
 ## Performance and failure semantics
 
 Each observer owns a bounded asynchronous queue. Inference performs a nonblocking

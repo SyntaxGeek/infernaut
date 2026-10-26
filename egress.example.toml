@@ -1,0 +1,39 @@
+# infernaut-egress example configuration.
+# Response-side egress watcher: inspects model output (message text and
+# tool-call arguments) for exfiltration shapes. Report-only; findings land
+# in storage.directory as findings-*.jsonl.
+
+[plugin]
+id = "egress"
+
+[storage]
+# Same state volume as the sentinel so Alloy can tail it.
+directory = "/home/infernaut/.infernaut/egress"
+retain_days = 14
+max_total_mb = 200
+max_file_mb = 25
+
+# NOTE: response.delta events carry one SSE chunk each (~100 KB); in the
+# gateway [[plugins]] block set queue_capacity = 16 for this plugin, not 1024,
+# so a backlog cannot balloon gateway memory.
+[scan]
+# Per-request response buffer ceiling; larger responses are scanned truncated.
+max_buffer_bytes = 262144
+# How many in-flight response buffers to keep; oldest is dropped beyond this.
+max_tracked_requests = 64
+max_findings_per_response = 25
+max_domain_findings_per_response = 10
+max_match_chars = 200
+
+[domains]
+# Hosts never reported by the unknown-domain detector (wildcards: *.example.com).
+# Put your agents' legitimate API destinations here.
+allowlist = []
+
+# Hosts always reported at HIGH severity (wildcards supported).
+# Seeds: hosts from Cohere's Qwen3.8 exfil report plus its routify file proxy.
+denylist = [
+  "*.aliyuncs.com",
+  "sanmaohe.oss-cn-beijing.aliyuncs.com",
+  "routify-file-proxy-sg.oss-ap-southeast-1.aliyuncs.com",
+]
