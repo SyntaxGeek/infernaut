@@ -1,4 +1,4 @@
-# Observer plugins, the reference sniffer, and the sentinel
+# Observer plugins, the reference sniffer, the sentinel, and the egress watcher
 
 Infernaut observer plugins are optional, out-of-process programs that receive
 typed copies of inference-boundary events. They are suitable for lightweight

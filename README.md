@@ -533,51 +533,20 @@ x-infernaut-privacy-policy
 
 Infernaut can copy typed inference events to optional out-of-process observer
 plugins without placing their work in the response path. No plugin is active
-by default. The bundled `infernaut-sniffer` is a report-only reference plugin
-with keyword and regex rules, realm/direction filters, JSONL findings, and
-storage limits:
+by default. All bundled observers are report-only, write `findings-*.jsonl`
+with bounded storage, and ship an example config (`<name>.example.toml`)
+validated with `target/release/<plugin> --validate <config>`:
 
-```bash
-cargo build --release --bins
-cp sniffer.example.toml sniffer.toml
-target/release/infernaut-sniffer --validate sniffer.toml
-```
+| Plugin | Direction | Watches for | Guide |
+|---|---|---|---|
+| `infernaut-sniffer` | requests and responses | keyword and regex rules, realm/event filters | [Sniffer](docs/PLUGINS.md#build-and-enable-the-sniffer) |
+| `infernaut-sentinel` | requests | prompt injection: markers, Unicode smuggling, homoglyphs, encoded payloads, hidden markup, provenance-tagged | [Sentinel](docs/PLUGINS.md#structural-injection-scanning-with-the-sentinel) |
+| `infernaut-egress` | responses | exfiltration shapes: cloud metadata endpoints, upload/download commands, container escapes, unknown external domains | [Egress](docs/PLUGINS.md#egress-monitoring-with-the-egress-watcher) |
 
-```toml
-[[plugins]]
-id = "sniffer"
-mode = "observe"
-command = "./target/release/infernaut-sniffer"
-args = ["sniffer.toml"]
-events = [
-  "request.content",
-  "response.delta",
-  "response.completed",
-  "provider.error",
-  "diagnostic.matched",
-]
-queue_capacity = 1024
-```
-
-The bundled `infernaut-sentinel` is a structural prompt-injection scanner: it
-parses each request body, tags segments by provenance (system, user,
-assistant, tool result), and applies injection-marker, Unicode-smuggling,
-homoglyph, encoded-payload, and hidden-markup detectors to untrusted segments
-only:
-
-```toml
-[[plugins]]
-id = "sentinel"
-mode = "observe"
-command = "./target/release/infernaut-sentinel"
-args = ["sentinel.toml"]
-events = ["request.content"]
-```
-
-Distinct segments are reported once even when clients resend the full
-transcript on every call, so the findings feed stays signal-dense. A reference
-stack — Loki, Alloy, and a provisioned Grafana dashboard — consumes
-`findings-*.jsonl` for live review:
+Each guide in the [operator and plugin-author documentation](docs/PLUGINS.md)
+carries the full `[[plugins]]` subscribe block for that observer. A reference
+stack — Loki, Alloy, and a provisioned Grafana dashboard — consumes the
+findings feeds for live review:
 
 ![Infernaut Security dashboard: findings by detector, severity, and provenance with recent findings from Grafana Loki](docs/img/sentinel-dashboard.png)
 
